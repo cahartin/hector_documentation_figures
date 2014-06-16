@@ -4,9 +4,9 @@
 
 # Support functions and common definitions
 
+INPUT_FILE		<- "figuredata.csv"
 SCRIPTNAME		<- "figures.R"
 OUTPUT_DIR		<- "outputs/"
-INPUT_FILE		<- "figuredata.csv"
 LOG_DIR			<- "logs/"
 SEPARATOR		<- "-------------------"
 
@@ -58,13 +58,31 @@ loadlibs <- function( liblist ) {
 	printlog( "Loading libraries..." )
 	loadedlibs <- vector()
 	for( lib in liblist ) {
-		printlog( "Loading", lib )
+		printlog( "- loading", lib )
 		loadedlibs[ lib ] <- require( lib, character.only=T )
 		if( !loadedlibs[ lib ] )
 			warning( "this package is not installed!" )
 	}
 	invisible( loadedlibs )
 } # loadlibs
+
+# ==============================================================================
+# Figure functions
+fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
+	printlog( "Plotting", vtagname )
+	printdims( d )
+	d1 <- subset( d, vtag==vtagname & model %in% c( "HECTOR", "MAGICC6" ) )
+	printdims( d1 )
+	p <- ggplot( d1, aes( year, value, color=scenario ) ) 
+	p <- p + geom_line( aes( color=scenario, linetype=model ) )
+	p <- p + xlab( "Year" ) + ylab( prettylabel )
+	p <- p + scale_color_discrete( "RCP", labels=c("2.6","4.5","6.0","8.5") )
+	p <- p + scale_linetype_discrete( "Model", labels=c( "Hector", "MAGICC" ) )
+	p <- p + xlim( c( 1850, 2300 ) )
+	print( p )
+	saveplot( paste0( "magicc_comparison_", vtagname ) )
+	invisible( p )
+}
 
 
 # ==============================================================================
@@ -90,12 +108,36 @@ if( exists( "RANDOM_SEED" ) ) {
 	set.seed( RANDOM_SEED )
 }
 
-loadlibs( c( "ggplot2", "reshape", "plyr", "lubridate" ) )	# the hadleyverse
+loadlibs( c( "ggplot2", "reshape2", "dplyr", "lubridate" ) )	# the hadleyverse
 theme_set( theme_bw() )
 
 # ----- Main script goes here...
 
-#d <- read_csv( INPUT_FILE )
+# R reads big files a LOT faster if you pre-specify the column types
+cc <- c( 	"ctag"="factor",
+			"variable"="factor",
+			"component"="factor",
+			"year"="numeric",
+			"run_name"="factor",
+			"spinup"="numeric",
+			"value"="numeric",
+			"units"="factor",
+			"source"="factor",
+			"scenario"="character",
+			"model"="character",
+			"type"="factor",
+			"error"="numeric", "error_min"="numeric", "error_max"="numeric",
+			"old_ctags"=NULL, "notes.x"=NULL ,
+			"vtag"="character",
+			"prettylabel"=NULL, "old_vtags"=NULL, "notes.y"=NULL,"variable.x"=NULL,"variable.y"=NULL )
+d <- read_csv( INPUT_FILE, colClasses=cc  )
+printdims( d )
+d <- subset( d, !spinup | is.na( spinup ) )
+printdims( d )
+
+
+fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
+
 
 # expression( SR[annual]~(g~C~m^{-2}~yr^{-1}) )
 # text( x, y, bquote( R^{2} == .(r2) ) )
