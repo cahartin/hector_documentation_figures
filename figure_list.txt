@@ -1,0 +1,28 @@
+
+Manuscript to do list for CH and BBL:
+
+1. need temperature observations -> Hector R code 1961 to 1990 mean to make data look like OBS. 
+2. O3 either fix or disable 								
+3. constraint cases slightly off 
+after submission 4. documentation --> read me file and getting started guides
+CH 5. unconstrained --> initial CO2 values start with higher carbon values over all  1% 3 or 4 ppm range
+	check current day conditions of pco2
+6. simplify down the figures unconstrained  or 1 figure of constrained historical and totally unconstrained.
+BBL 7.  Taylor plot of variables: pCO2 and temperature  with CMIP5 mean and MAGICC
+
+We want to hold the data constant after Hector runs and use that to plot the figures. new R script for just figure generation. 
+Github R script and dataframe. 
+CH create repository and figure list
+
+Figures:
+time vs variable, CMIP5, obs, Hector and MAGICC, from 1850 to 2300
+all 4 RCPs or faceted RCPs or different plots
+1. atmospheric CO2
+2. atmospheric temp
+3. radiative forcing
+4. fluxes --> gap between 2100 and 2300
+5. NBB and RH ? 
+6. ocean pH
+Taylor plots, with MAGICC, CMIP models, and obs
+7. atmospheric CO2
+8. atmospheric temperature
