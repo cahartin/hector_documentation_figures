@@ -68,9 +68,43 @@ loadlibs <- function( liblist ) {
 
 # ==============================================================================
 # Figure functions
-fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
+
+# -----------------------------------------------------------------------------
+# Change to relative values, adjusting the error terms
+make_relative <- function( d ) {
+
+	dph_s <- d[ order( d$year ), ]	#sorts in order of year 
+
+	dph_s$error_min <- with( dph_s, error_min - value )
+	dph_s$error_max <- with( dph_s, error_max - value )
+	d_norm <- ddply( dph_s, .( ctag, vtag, model, type, units, scenario), mutate, 
+		value = value - value[1],  
+		error_min = error_min,
+		error_max = error_max )
+	dph_s$error_min <- with( dph_s, error_min + value )
+	dph_s$error_max <- with( dph_s, error_max + value )
+	dph_s
+}
+
+# -----------------------------------------------------------------------------
+fig_timeseries <- function( d, vtagname, prettylabel ) {
+
+	d1 <- subset( d1, vtag==vtagname &
+		model %in% c( "CMIP5", "HECTOR", "MAGICC 5.3", "MAGICC6" ) #, "GCP", "BATS", "HOTS"))
+	
+}
+
+# -----------------------------------------------------------------------------
+fig_taylor <- function( d, vtagname, prettylabel ) {
 	printlog( "Plotting", vtagname )
 	printdims( d )
+	d1 <- subset( d, vtag==vtagname )
+
+}
+
+# -----------------------------------------------------------------------------
+fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
+	printlog( "Plotting", vtagname )
 	d1 <- subset( d, vtag==vtagname & model %in% c( "HECTOR", "MAGICC6" ) )
 	printdims( d1 )
 	p <- ggplot( d1, aes( year, value, color=scenario ) ) 
@@ -103,15 +137,8 @@ sink( paste( LOG_DIR, paste0( SCRIPTNAME, ".txt" ), sep="/" ), split=T )
 
 printlog( "Welcome to", SCRIPTNAME )
 
-if( exists( "RANDOM_SEED" ) ) {
-	printlog( "Setting random generator seed to", RANDOM_SEED )
-	set.seed( RANDOM_SEED )
-}
-
-loadlibs( c( "ggplot2", "reshape2", "dplyr", "lubridate" ) )	# the hadleyverse
+loadlibs( c( "ggplot2", "reshape2", "dplyr", "lubridate", "plotrix" ) )	# the hadleyverse
 theme_set( theme_bw() )
-
-# ----- Main script goes here...
 
 # R reads big files a LOT faster if you pre-specify the column types
 cc <- c( 	"ctag"="factor",
@@ -135,13 +162,19 @@ printdims( d )
 d <- subset( d, !spinup | is.na( spinup ) )
 printdims( d )
 
+# Taylor plots comparing Hector with CMIP5 models
 
+
+# Time series plots with CMIP5 and MAGICC
+
+
+
+# Figures comparing Hector and MAGICC (no CMIP)
+printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
 fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
+fig_magicc_comparison( d, "tgav", expression( Temperature~group("(",paste(degree,C),")") ) )
+fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) )
 
-
-# expression( SR[annual]~(g~C~m^{-2}~yr^{-1}) )
-# text( x, y, bquote( R^{2} == .(r2) ) )
-# expression( italic(T)[5]~group("(",paste(degree,C),")") )
 
 
 print( sessionInfo() )
