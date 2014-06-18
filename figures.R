@@ -90,8 +90,31 @@ make_relative <- function( d ) {
 fig_timeseries <- function( d, vtagname, prettylabel ) {
 
 	d1 <- subset( d1, vtag==vtagname &
-		model %in% c( "CMIP5", "HECTOR", "MAGICC 5.3", "MAGICC6" ) #, "GCP", "BATS", "HOTS"))
+		model %in% c( "CMIP5", "HECTOR", "MAGICC 5.3", "MAGICC6" )) #, "GCP", "BATS", "HOTS"))
 	
+}
+
+# -----------------------------------------------------------------------------
+fig_datasummary <- function( d ) {
+	# Make a summary plot showing what variables are available to plot
+	dgrp <- group_by( d, scenario, type, model )	# dplyr
+	dsum <- na.omit( summarise( dgrp, count=n() ) )
+	dsum$count_grp <- cut(dsum$count,c(1,10,100,1000,10000,100000))
+
+	dev.new( height=10, width=10 )
+	p <- qplot( scenario, model, data=subset( dsum, type!="observed" ), geom="tile", fill=count_grp )
+	print( p )
+	saveplot( "summary_scenario_model" )
+
+	dgrp <- group_by( d, vtag, type, model )	# dplyr
+	dsum <- na.omit( summarise( dgrp, count=n() ) )
+	dsum$count_grp <- cut( dsum$count,c( 1, 10,100,1000,3000))
+	p <- qplot( vtag, model, data=subset( dsum, type!="observed" ), geom="tile", fill=count_grp )
+	p <- p +  theme( axis.text.x  = element_text( angle=90 ) )
+	print( p )
+	saveplot( "summary_vtag_model" )
+	dev.off()
+
 }
 
 # -----------------------------------------------------------------------------
@@ -159,7 +182,8 @@ cc <- c( 	"ctag"="factor",
 			"prettylabel"=NULL, "old_vtags"=NULL, "notes.y"=NULL,"variable.x"=NULL,"variable.y"=NULL )
 d <- read_csv( INPUT_FILE, colClasses=cc  )
 printdims( d )
-d <- subset( d, !spinup | is.na( spinup ) )
+d <- subset( d, !spinup | is.na( spinup ) )		# remove all spinup data
+d$spinup <- NULL
 printdims( d )
 
 # Taylor plots comparing Hector with CMIP5 models
@@ -173,7 +197,7 @@ printdims( d )
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
 fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
 fig_magicc_comparison( d, "tgav", expression( Temperature~group("(",paste(degree,C),")") ) )
-fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) )
+fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 
 
 
