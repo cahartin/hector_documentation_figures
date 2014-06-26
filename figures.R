@@ -119,10 +119,46 @@ fig_datasummary <- function( d ) {
 
 # -----------------------------------------------------------------------------
 fig_taylor <- function( d, vtagname, prettylabel ) {
-	printlog( "Plotting", vtagname )
-	printdims( d )
-	d1 <- subset( d, vtag==vtagname )
-
+    printlog( "Plotting", vtagname )
+    d1 <- subset( d, vtag==vtagname & year >= 1850 )
+    d1$future <- d1$year > 2004
+    printdims( d1 )
+    
+    # Since we're only plotting >=1850, re-normalize relative to first year
+    d1 <- d1[ order( d1$year ), ]
+    d1$error_min <- with( d1, error_min - value )
+    d1$error_max <- with( d1, error_max - value )
+    d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
+                 error_min = error_min , error_max = error_max )
+    d1$error_min <- with( d1, error_min + value )
+    d1$error_max <- with( d1, error_max + value )
+    
+    printlog( "Taylor plot..." )		# following code from taylor.diagram help
+    library( plotrix )
+    pdf( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".pdf" ) )
+    
+    d_hector <- subset( d1, model=="HECTOR" )[ , c( "model", "year", "value" ) ]
+    d_others <- subset( d1, model!="HECTOR" )[ , c( "model", "year", "value" ) ]
+    models <- unique( d_others$model )
+#    colors <- rainbow( length( models )+1 )
+    oldpar <- taylor.diagram( d_hector$value, d_hector$value, main="", col="green",
+                            xlab=prettylabel, ylab=prettylabel ) #colors[ 1 ] )
+    for( m in 1:length( models ) ) {
+        d_mod <- subset( d_others, model==models[ m ] )
+        d_plot <- merge( d_hector, d_mod, by="year" )
+        if( models[ m ]=="CMIP5" ) color <- "red" 
+            else if( models[ m ]=="MAGICC6" ) color <- "blue"
+            else color <- "darkgrey"
+        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=color )
+    }
+    
+    # get approximate legend position
+    lpos <- 1.35 * sd( d_hector$value )
+    # add a legend
+    legend( lpos, lpos, legend=c("HECTOR", "MAGICC6", "CMIP5 mean", "CMIP5 model" ), pch=19, col=c( "green", "blue", "red", "darkgrey" ) )
+    # now restore par values
+    par( oldpar )
+    dev.off()
 }
 
 # -----------------------------------------------------------------------------
@@ -130,6 +166,7 @@ fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
 	printlog( "Plotting", vtagname )
 	d1 <- subset( d, vtag==vtagname & model %in% c( "HECTOR", "MAGICC6" ) )
 	printdims( d1 )
+    
 	p <- ggplot( d1, aes( year, value, color=scenario ) ) 
 	p <- p + geom_line( aes( color=scenario, linetype=model ) )
 	p <- p + xlab( "Year" ) + ylab( prettylabel )
@@ -218,26 +255,25 @@ d <- subset( d, !spinup | is.na( spinup ) )		# remove all spinup data
 d$spinup <- NULL
 printdims( d )
 
-# Taylor plots comparing Hector with CMIP5 models
 
-
-# Time series plots with CMIP5 and MAGICC
-
-
+# Pretty axis label definitions
+tgav_pretty <- expression( Temperature~change~group("(",paste(degree,C),")") )
 
 # Figures comparing Hector and MAGICC (no CMIP)
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
 fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
-fig_magicc_comparison( d, "tgav", expression( Temperature~change~group("(",paste(degree,C),")") ) )
+fig_magicc_comparison( d, "tgav", tgav_pretty )
 fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 
 
 # Figures comparing Hector and CMIP5 (plus MAGICC)
 cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                      model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) )
-cmip5_comparison( cmip5, "tgav", expression( Temperature~change~group("(",paste(degree,C),")") ) )
+cmip5_comparison( cmip5, "tgav", tgav_pretty )
 
-
+# Taylor plots comparing Hector to all CMIP5 models
+cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) )
+fig_taylor( cmip5indiv, "tgav", tgav_pretty )
     
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
