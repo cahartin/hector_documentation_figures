@@ -141,6 +141,36 @@ fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
 	invisible( p )
 }
 
+# -----------------------------------------------------------------------------
+cmip5_comparison <- function( d, vtagname, prettylabel ) {
+    printlog( "Plotting", vtagname )
+    d1 <- subset( d, vtag==vtagname & year >= 1850 )
+    d1$future <- d1$year > 2004
+    printdims( d1 )
+    
+    # Since we're only plotting >=1850, re-normalize relative to first year
+    d1 <- d1[ order( d1$year ), ]
+    d1$error_min <- with( d1, error_min - value )
+    d1$error_max <- with( d1, error_max - value )
+    d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
+                   error_min = error_min , error_max = error_max )
+    d1$error_min <- with( d1, error_min + value )
+    d1$error_max <- with( d1, error_max + value )
+    
+    p <- ggplot( d1, aes( year, value, color=model ) )
+    p <- p + geom_line( size=2 )
+    p <- p + geom_ribbon( aes( ymin=value-error, ymax=value+error, fill=model ), color=NA, alpha=0.5, show_guide=F )
+    p <- p + geom_ribbon( aes( ymin=error_min, ymax=error_max, fill=model ), color=NA, alpha=0.25, show_guide=F )
+    p <- p + facet_grid( ~future, scales="free_x", space="free_x" )
+    p <- p + theme( strip.text.x = element_blank() ) + theme( strip.background = element_blank() )
+    p <- p + xlab( "Year" ) + ylab( prettylabel )
+    p <- p + scale_color_discrete( "Model" )
+    p <- p + scale_x_continuous( expand=c( 0, 0 ) )
+    print( p )
+    saveplot( paste0( "cmip5_comparison_", vtagname ) )
+    invisible( p )
+}
+
 
 # ==============================================================================
 # Main
@@ -160,8 +190,10 @@ sink( paste( LOG_DIR, paste0( SCRIPTNAME, ".txt" ), sep="/" ), split=T )
 
 printlog( "Welcome to", SCRIPTNAME )
 
-loadlibs( c( "ggplot2", "reshape2", "dplyr", "lubridate", "plotrix" ) )	# the hadleyverse
+loadlibs( c( "ggplot2", "reshape2", "plyr", "lubridate", "plotrix" ) )	# the hadleyverse
 theme_set( theme_bw() )
+
+#theme_update( ... )
 
 # R reads big files a LOT faster if you pre-specify the column types
 cc <- c( 	"ctag"="factor",
@@ -196,11 +228,17 @@ printdims( d )
 # Figures comparing Hector and MAGICC (no CMIP)
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
 fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
-fig_magicc_comparison( d, "tgav", expression( Temperature~group("(",paste(degree,C),")") ) )
+fig_magicc_comparison( d, "tgav", expression( Temperature~change~group("(",paste(degree,C),")") ) )
 fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 
 
+# Figures comparing Hector and CMIP5 (plus MAGICC)
+cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
+                     model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) )
+cmip5_comparison( cmip5, "tgav", expression( Temperature~change~group("(",paste(degree,C),")") ) )
 
+
+    
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
 sink()
