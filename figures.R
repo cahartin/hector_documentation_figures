@@ -118,20 +118,13 @@ fig_datasummary <- function( d ) {
 }
 
 # -----------------------------------------------------------------------------
-fig_taylor <- function( d, vtagname, prettylabel ) {
+fig_taylor <- function( d, vtagname, prettylabel, normalizeYear=NA ) {
     printlog( "Plotting", vtagname )
-    d1 <- subset( d, vtag==vtagname & year >= 1850 )
+    d1 <- subset( d, vtag==vtagname )
     d1$future <- d1$year > 2004
     printdims( d1 )
     
-    # Since we're only plotting >=1850, re-normalize relative to first year
-    d1 <- d1[ order( d1$year ), ]
-    d1$error_min <- with( d1, error_min - value )
-    d1$error_max <- with( d1, error_max - value )
-    d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
-                 error_min = error_min , error_max = error_max )
-    d1$error_min <- with( d1, error_min + value )
-    d1$error_max <- with( d1, error_max + value )
+    d1 <- renormalize( d1, normalizeYear )
     
     printlog( "Taylor plot..." )		# following code from taylor.diagram help
     library( plotrix )
@@ -144,11 +137,14 @@ fig_taylor <- function( d, vtagname, prettylabel ) {
     oldpar <- taylor.diagram( d_hector$value, d_hector$value, main="", col="green",
                             xlab=prettylabel, ylab=prettylabel ) #colors[ 1 ] )
     for( m in 1:length( models ) ) {
+        printlog( m, models[ m ] )
         d_mod <- subset( d_others, model==models[ m ] )
+        d_mod$year <- round( d_mod$year )   # some models report 2001.5, 2002.5, etc.
         d_plot <- merge( d_hector, d_mod, by="year" )
         if( models[ m ]=="CMIP5" ) color <- "red" 
             else if( models[ m ]=="MAGICC6" ) color <- "blue"
             else color <- "darkgrey"
+#        if( nrow( d_mod ) < 3 ) next
         taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=color )
     }
     
@@ -179,20 +175,29 @@ fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
 }
 
 # -----------------------------------------------------------------------------
-cmip5_comparison <- function( d, vtagname, prettylabel ) {
+renormalize <- function( d1, normalizeYear ) {
+    if( !is.na( normalizeYear ) ) {
+        d1 <- d1[ d1$year >= normalizeYear, ]
+        d1 <- d1[ order( d1$year ), ]
+        d1$error_min <- with( d1, error_min - value )
+        d1$error_max <- with( d1, error_max - value )
+        d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
+                     error_min = error_min , error_max = error_max )
+        d1$error_min <- with( d1, error_min + value )
+        d1$error_max <- with( d1, error_max + value )        
+    }
+    d1
+}
+
+# -----------------------------------------------------------------------------
+cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYear=NA ) {
     printlog( "Plotting", vtagname )
-    d1 <- subset( d, vtag==vtagname & year >= 1850 )
+    d1 <- subset( d, vtag==vtagname )
     d1$future <- d1$year > 2004
     printdims( d1 )
     
     # Since we're only plotting >=1850, re-normalize relative to first year
-    d1 <- d1[ order( d1$year ), ]
-    d1$error_min <- with( d1, error_min - value )
-    d1$error_max <- with( d1, error_max - value )
-    d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
-                   error_min = error_min , error_max = error_max )
-    d1$error_min <- with( d1, error_min + value )
-    d1$error_max <- with( d1, error_max + value )
+    d1 <- renormalize( d1, normalizeYear )
     
     p <- ggplot( d1, aes( year, value, color=model ) )
     p <- p + geom_line( size=2 )
@@ -258,6 +263,7 @@ printdims( d )
 
 # Pretty axis label definitions
 tgav_pretty <- expression( Temperature~change~group("(",paste(degree,C),")") )
+oaflux_pretty <- expression( Atmosphere-ocean~flux~(Pg~C~yr^{-1}))
 
 # Figures comparing Hector and MAGICC (no CMIP)
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
@@ -269,12 +275,14 @@ fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 # Figures comparing Hector and CMIP5 (plus MAGICC)
 cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                      model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) )
-cmip5_comparison( cmip5, "tgav", tgav_pretty )
+cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYear=1850 )
+cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty )
 
 # Taylor plots comparing Hector to all CMIP5 models
 cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) )
-fig_taylor( cmip5indiv, "tgav", tgav_pretty )
-    
+fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYear=1850 )
+fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty )
+
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
 sink()
