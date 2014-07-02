@@ -118,13 +118,13 @@ fig_datasummary <- function( d ) {
 }
 
 # -----------------------------------------------------------------------------
-fig_taylor <- function( d, vtagname, prettylabel, normalizeYear=NA ) {
+fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
     d1$future <- d1$year > 2004
     printdims( d1 )
     
-    d1 <- renormalize( d1, normalizeYear )
+    d1 <- renormalize( d1, normalizeYears )
     
     printlog( "Taylor plot..." )		# following code from taylor.diagram help
     library( plotrix )
@@ -175,30 +175,36 @@ fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
 }
 
 # -----------------------------------------------------------------------------
-renormalize <- function( d1, normalizeYear ) {
-    if( !is.na( normalizeYear ) ) {
-        d1 <- d1[ d1$year >= normalizeYear, ]
-        d1 <- d1[ order( d1$year ), ]
-        d1$error_min <- with( d1, error_min - value )
-        d1$error_max <- with( d1, error_max - value )
-        d1 <- ddply( d1, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value[1],  
+renormalize <- function( d, normalizeYears ) {
+    if( all( !is.na( normalizeYears ) ) ) {
+        stopifnot( is.numeric( normalizeYears ) )
+        
+        # Compute mean value during the normalization period
+        d_norm <- ddply( d[ d$year %in% normalizeYears, ], 
+                         .( ctag, vtag, model ), summarise, 
+                         value_norm_mean = mean( value ) )
+        d <- merge( d, d_norm )
+
+        # Relativize the error_min and max, normalize, then recompute them
+        d$error_min <- with( d, error_min - value )
+        d$error_max <- with( d, error_max - value )
+        d <- ddply( d, .( ctag, vtag, model, type, units, scenario), mutate, value = value - value_norm_mean,  
                      error_min = error_min , error_max = error_max )
-        d1$error_min <- with( d1, error_min + value )
-        d1$error_max <- with( d1, error_max + value )        
+        d$error_min <- with( d, error_min + value )
+        d$error_max <- with( d, error_max + value )
+        d$value_norm_mean <- NULL
     }
-    d1
+    d
 }
 
 # -----------------------------------------------------------------------------
-cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYear=NA ) {
+cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
+    d1 <- renormalize( d1, normalizeYears )
     d1$future <- d1$year > 2004
     printdims( d1 )
-    
-    # Since we're only plotting >=1850, re-normalize relative to first year
-    d1 <- renormalize( d1, normalizeYear )
-    
+        
     p <- ggplot( d1, aes( year, value, color=model ) )
     p <- p + geom_line( size=2 )
     p <- p + geom_ribbon( aes( ymin=value-error, ymax=value+error, fill=model ), color=NA, alpha=0.5, show_guide=F )
@@ -238,18 +244,18 @@ theme_set( theme_bw() )
 #theme_update( ... )
 
 # R reads big files a LOT faster if you pre-specify the column types
-cc <- c( 	"ctag"="factor",
-			"variable"="factor",
-			"component"="factor",
+cc <- c( 	"ctag"="character",
+			"variable"="character",
+			"component"="character",
 			"year"="numeric",
-			"run_name"="factor",
+			"run_name"="character",
 			"spinup"="numeric",
 			"value"="numeric",
-			"units"="factor",
-			"source"="factor",
+			"units"="character",
+			"source"="character",
 			"scenario"="character",
 			"model"="character",
-			"type"="factor",
+			"type"="character",
 			"error"="numeric", "error_min"="numeric", "error_max"="numeric",
 			"old_ctags"=NULL, "notes.x"=NULL ,
 			"vtag"="character",
@@ -257,11 +263,17 @@ cc <- c( 	"ctag"="factor",
 d <- read_csv( INPUT_FILE, colClasses=cc  )
 printdims( d )
 d <- subset( d, !spinup | is.na( spinup ) )		# remove all spinup data
-d$spinup <- NULL
+d$spinup <- NULL    # ...and a lot of crap fields
+d$notes.x <- NULL
+d$notes.y <- NULL
+d$variable.x <- NULL
+d$variable.y <- NULL
+d$old_ctags <- NULL
+d$old_vtags <- NULL
 printdims( d )
 
 
-# Pretty axis label definitions
+# Definitions for 'pretty' axis labels
 tgav_pretty <- expression( Temperature~change~group("(",paste(degree,C),")") )
 oaflux_pretty <- expression( Atmosphere-ocean~flux~(Pg~C~yr^{-1}))
 
@@ -271,17 +283,18 @@ fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
 fig_magicc_comparison( d, "tgav", tgav_pretty )
 fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 
-
 # Figures comparing Hector and CMIP5 (plus MAGICC)
 cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
-                     model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) )
-cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYear=1850 )
-cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty )
+                     model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) &
+                     year >= 1850 )
+cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1961:1990 )
+cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 # Taylor plots comparing Hector to all CMIP5 models
-cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) )
-fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYear=1850 )
-fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty )
+cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
+                          year >= 1850 )
+fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
+fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
