@@ -70,23 +70,6 @@ loadlibs <- function( liblist ) {
 # Figure functions
 
 # -----------------------------------------------------------------------------
-# Change to relative values, adjusting the error terms
-make_relative <- function( d ) {
-
-	dph_s <- d[ order( d$year ), ]	#sorts in order of year 
-
-	dph_s$error_min <- with( dph_s, error_min - value )
-	dph_s$error_max <- with( dph_s, error_max - value )
-	d_norm <- ddply( dph_s, .( ctag, vtag, model, type, units, scenario), mutate, 
-		value = value - value[1],  
-		error_min = error_min,
-		error_max = error_max )
-	dph_s$error_min <- with( dph_s, error_min + value )
-	dph_s$error_max <- with( dph_s, error_max + value )
-	dph_s
-}
-
-# -----------------------------------------------------------------------------
 fig_timeseries <- function( d, vtagname, prettylabel ) {
 
 	d1 <- subset( d1, vtag==vtagname &
@@ -180,6 +163,10 @@ renormalize <- function( d, normalizeYears ) {
         stopifnot( is.numeric( normalizeYears ) )
         
         # Compute mean value during the normalization period
+        # NOTE: 'scenario' isn't included in the ddply call below, because we want
+        # RCPs to be normalized by a historical period. But if you're plotting
+        # multiple scenarios in a single plot, and normalizing by a future period, 
+        # this will fail.
         d_norm <- ddply( d[ d$year %in% normalizeYears, ], 
                          .( ctag, vtag, model ), summarise, 
                          value_norm_mean = mean( value ) )
