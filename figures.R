@@ -101,7 +101,15 @@ fig_datasummary <- function( d ) {
 }
 
 # -----------------------------------------------------------------------------
-fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
+taylorcolor <- function( modelname ) {
+	if( modelname=="CMIP5" ) return( "red" )
+	else if( modelname=="MAGICC6" ) return( "blue" )
+	else if( modelname=="HECTOR" ) return( "green" )
+	else return( "darkgrey" )
+}
+
+# -----------------------------------------------------------------------------
+fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="HECTOR" ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
     d1$future <- d1$year > 2004
@@ -113,28 +121,28 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
     library( plotrix )
     pdf( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".pdf" ) )
     
-    d_hector <- subset( d1, model=="HECTOR" )[ , c( "model", "year", "value" ) ]
-    d_others <- subset( d1, model!="HECTOR" )[ , c( "model", "year", "value" ) ]
+    d_ref <- subset( d1, model==refmodel )[ , c( "model", "year", "value" ) ]
+    d_others <- subset( d1, model!=refmodel )[ , c( "model", "year", "value" ) ]
     models <- unique( d_others$model )
 #    colors <- rainbow( length( models )+1 )
-    oldpar <- taylor.diagram( d_hector$value, d_hector$value, main="", col="green",
+    oldpar <- taylor.diagram( d_ref$value, d_ref$value, main="", 
+    						col=taylorcolor( refmodel ),
                             xlab=prettylabel, ylab=prettylabel ) #colors[ 1 ] )
     for( m in 1:length( models ) ) {
         printlog( m, models[ m ] )
         d_mod <- subset( d_others, model==models[ m ] )
         d_mod$year <- round( d_mod$year )   # some models report 2001.5, 2002.5, etc.
-        d_plot <- merge( d_hector, d_mod, by="year" )
-        if( models[ m ]=="CMIP5" ) color <- "red" 
-            else if( models[ m ]=="MAGICC6" ) color <- "blue"
-            else color <- "darkgrey"
+        d_plot <- merge( d_ref, d_mod, by="year" )
+
 #        if( nrow( d_mod ) < 3 ) next
-        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=color )
+        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=taylorcolor( models[ m ] )
     }
     
     # get approximate legend position
-    lpos <- 1.35 * sd( d_hector$value )
+    lpos <- 1.35 * sd( d_ref$value )
     # add a legend
-    legend( lpos, lpos, legend=c("HECTOR", "MAGICC6", "CMIP5 mean", "CMIP5 model" ), pch=19, col=c( "green", "blue", "red", "darkgrey" ) )
+    modellist <- c("HECTOR", "MAGICC6", "CMIP5 mean", "CMIP5 model" )
+    legend( lpos, lpos, legend=modellist, pch=19, col=taylorcolor( modellist ) )
     # now restore par values
     par( oldpar )
     dev.off()
