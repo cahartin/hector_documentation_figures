@@ -233,29 +233,30 @@ sink( paste( LOG_DIR, paste0( SCRIPTNAME, ".txt" ), sep="/" ), split=T )
 
 printlog( "Welcome to", SCRIPTNAME )
 
-loadlibs( c( "ggplot2", "reshape2", "plyr", "lubridate", "plotrix" ) )	# the hadleyverse
+loadlibs( c( "ggplot2", "reshape2", "plyr", "lubridate", "plotrix", "data.table" ) )	# the hadleyverse
 theme_set( theme_bw() )
 
 #theme_update( ... )
 
 # R reads big files a LOT faster if you pre-specify the column types
-cc <- c( 	"ctag"="character",
-			"variable"="character",
-			"component"="character",
-			"year"="numeric",
-			"run_name"="character",
-			"spinup"="numeric",
-			"value"="numeric",
-			"units"="character",
-			"source"="character",
-			"scenario"="character",
-			"model"="character",
-			"type"="character",
-			"error"="numeric", "error_min"="numeric", "error_max"="numeric",
-			"old_ctags"=NULL, "notes.x"=NULL ,
-			"vtag"="character",
-			"prettylabel"=NULL, "old_vtags"=NULL, "notes.y"=NULL,"variable.x"=NULL,"variable.y"=NULL )
-d <- read_csv( INPUT_FILE, colClasses=cc  )
+#cc <- c( 	"ctag"="character",
+#			"variable"="character",
+#			"component"="character",
+#			"year"="numeric",
+#			"run_name"="character",
+#			"spinup"="numeric",
+#			"value"="numeric",
+#			"units"="character",
+#			"source"="character",
+#			"scenario"="character",
+#			"model"="character",
+#			"type"="character",
+#			"error"="numeric", "error_min"="numeric", "error_max"="numeric",
+#			"old_ctags"=NULL, "notes.x"=NULL ,
+#			"vtag"="character",
+#			"prettylabel"=NULL, "old_vtags"=NULL, "notes.y"=NULL,"variable.x"=NULL,"variable.y"=NULL )
+#d <- read_csv( INPUT_FILE, colClasses=cc  )
+d <- as.data.table( fread( INPUT_FILE ) )  # now using data.table's fread
 printdims( d )
 d <- subset( d, !spinup | is.na( spinup ) )		# remove all spinup data
 d$spinup <- NULL    # ...and a lot of crap fields
