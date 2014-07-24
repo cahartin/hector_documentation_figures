@@ -4,7 +4,7 @@
 
 # Support functions and common definitions
 
-INPUT_FILE		<- "figuredata.csv"
+INPUT_FILE		<- "hector_comparison.csv"
 SCRIPTNAME		<- "figures.R"
 OUTPUT_DIR		<- "outputs/"
 LOG_DIR			<- "logs/"
@@ -28,7 +28,7 @@ printdims <- function( d, dname=deparse( substitute( d ) ) ) {
 # -----------------------------------------------------------------------------
 # Save a ggplot figure
 saveplot <- function( pname, p=last_plot(), ptype=".pdf" ) {
-	stopifnot( file.exists( OUTPUT_DIR ) )
+	#stopifnot( file.exists( OUTPUT_DIR ) )
 	fn <- paste0( OUTPUT_DIR, "/", pname, ptype )
 	printlog( "Saving", fn )
 	ggsave( fn, p )
@@ -109,6 +109,23 @@ taylorcolor <- function( modelname ) {
 }
 
 # -----------------------------------------------------------------------------
+#cor_table <- function( d, normalizeYears=NA, refmodel="HECTOR" ) {
+#    printlog( "Making correlation & error table..." )
+    
+#    d1 <- renormalize( d, normalizeYears )
+    
+#    ddply_fields <- c( "model", "year", "value", "scenario", "vtag" )
+#    d_ref <- subset( d1, model==refmodel )[ , ddply_fields ]
+#    d_others <- subset( d1, model!=refmodel )[ , ddply_fields ]
+    
+#    f <- function(x) {
+#        dd <- merge( d_ref, x, by=c("year","vtag"))
+#    }
+#    d_summary <- ddply( d_others, .(scenario,variable,model), f )
+#}
+
+
+# -----------------------------------------------------------------------------
 fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="HECTOR" ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
@@ -134,8 +151,10 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="H
         d_mod$year <- round( d_mod$year )   # some models report 2001.5, 2002.5, etc.
         d_plot <- merge( d_ref, d_mod, by="year" )
 
+        mod <- summary( lm( value.y~value.x, data=d_plot ) )
+        printlog( "Hector versus", models[ m ], " R2=", round( mod$r.squared, 3 ), " RSE=", round( mod$sigma, 3 ) )
 #        if( nrow( d_mod ) < 3 ) next
-        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=taylorcolor( models[ m ] )
+        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=taylorcolor( models[ m ] ) )
     }
     
     # get approximate legend position
@@ -178,7 +197,7 @@ renormalize <- function( d, normalizeYears ) {
         d_norm <- ddply( d[ d$year %in% normalizeYears, ], 
                          .( ctag, vtag, model ), summarise, 
                          value_norm_mean = mean( value ) )
-        d <- merge( d, d_norm )
+        d <- merge( d, d_norm, by= c("ctag", "vtag", "model"))
 
         # Relativize the error_min and max, normalize, then recompute them
         d$error_min <- with( d, error_min - value )
@@ -283,7 +302,7 @@ fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                      model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) &
                      year >= 1850 )
-cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1961:1990 )
+cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850 )
 cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 # Taylor plots comparing Hector to all CMIP5 models
@@ -291,6 +310,11 @@ cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                           year >= 1850 )
 fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
 fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
+
+# Make a nice table of correlation & error between Hector and everything else
+cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
+                          year >= 1850 )
+#cor_table( cmip5indiv, c("tgav","atmos_co2","ftot"))
 
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
