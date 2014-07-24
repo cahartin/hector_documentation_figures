@@ -4,10 +4,10 @@
 
 # Support functions and common definitions
 
-INPUT_FILE		<- "hector_comparison.csv"
+INPUT_FILE		<- "figuredata.csv"
 SCRIPTNAME		<- "figures.R"
-OUTPUT_DIR		<- "outputs"
-LOG_DIR			<- "logs"
+OUTPUT_DIR		<- "outputs/"
+LOG_DIR			<- "logs/"
 SEPARATOR		<- "-------------------"
 
 # -----------------------------------------------------------------------------
@@ -27,7 +27,7 @@ printdims <- function( d, dname=deparse( substitute( d ) ) ) {
 
 # -----------------------------------------------------------------------------
 # Save a ggplot figure
-saveplot <- function( pname, p=last_plot(), ptype=".png" ) {
+saveplot <- function( pname, p=last_plot(), ptype=".pdf" ) {
 	stopifnot( file.exists( OUTPUT_DIR ) )
 	fn <- paste0( OUTPUT_DIR, "/", pname, ptype )
 	printlog( "Saving", fn )
@@ -73,7 +73,7 @@ loadlibs <- function( liblist ) {
 fig_timeseries <- function( d, vtagname, prettylabel ) {
 
 	d1 <- subset( d1, vtag==vtagname &
-		model %in% c( "CMIP5", "HECTOR", "MAGICC 5.3", "MAGICC6" , "GCP", "BATS", "HOTS", "HadCRUT4", "MaunaLoa", "Law Dome"))
+		model %in% c( "CMIP5", "HECTOR", "MAGICC 5.3", "MAGICC6" )) #, "GCP", "BATS", "HOTS"))
 	
 }
 
@@ -102,24 +102,24 @@ fig_datasummary <- function( d ) {
 
 # -----------------------------------------------------------------------------
 taylorcolor <- function( modelname ) {
-	if( modelname=="CMIP5 median" | modelname=="CMIP5" ) return( "red" )
+	if( modelname=="CMIP5" ) return( "red" )
 	else if( modelname=="MAGICC6" ) return( "blue" )
 	else if( modelname=="HECTOR" ) return( "green" )
 	else return( "darkgrey" )
 }
 
 # -----------------------------------------------------------------------------
-# sets a reference model for the Taylor diagrams
-fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="CMIP5" ) {
+fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="HECTOR" ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
+    d1$future <- d1$year > 2004
     printdims( d1 )
     
     d1 <- renormalize( d1, normalizeYears )
     
     printlog( "Taylor plot..." )		# following code from taylor.diagram help
     library( plotrix )
-    png( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".png" ) )
+    pdf( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".pdf" ) )
     
     d_ref <- subset( d1, model==refmodel )[ , c( "model", "year", "value" ) ]
     d_others <- subset( d1, model!=refmodel )[ , c( "model", "year", "value" ) ]
@@ -135,14 +135,14 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="C
         d_plot <- merge( d_ref, d_mod, by="year" )
 
 #        if( nrow( d_mod ) < 3 ) next
-        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=taylorcolor( models[ m ] ) )
+        taylor.diagram( d_plot$value.x, d_plot$value.y, add=T, col=taylorcolor( models[ m ] )
     }
     
     # get approximate legend position
     lpos <- 1.35 * sd( d_ref$value )
     # add a legend
-    modellist <- c("HECTOR", "MAGICC6", "CMIP5 median", "CMIP5 model" )
-    legend( lpos, lpos, legend=modellist, pch=19, col=sapply( modellist, taylorcolor ) )
+    modellist <- c("HECTOR", "MAGICC6", "CMIP5 mean", "CMIP5 model" )
+    legend( lpos, lpos, legend=modellist, pch=19, col=taylorcolor( modellist ) )
     # now restore par values
     par( oldpar )
     dev.off()
@@ -151,14 +151,14 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="C
 # -----------------------------------------------------------------------------
 fig_magicc_comparison <- function( d, vtagname, prettylabel ) {
 	printlog( "Plotting", vtagname )
-	d1 <- subset( d, vtag==vtagname & model %in% c( "HECTOR", "MAGICC6", "HadCRUT4", "Law Dome", "MaunaLoa", "GCP") )
+	d1 <- subset( d, vtag==vtagname & model %in% c( "HECTOR", "MAGICC6" ) )
 	printdims( d1 )
     
 	p <- ggplot( d1, aes( year, value, color=scenario ) ) 
 	p <- p + geom_line( aes( color=scenario, linetype=model ) )
 	p <- p + xlab( "Year" ) + ylab( prettylabel )
-	p <- p + scale_color_discrete( "RCP", labels=c("Observations","2.6","4.5","6.0","8.5") )
-	p <- p + scale_linetype_discrete( "Model", labels=c( "Hector", "MAGICC" , "HadCRUT4", "Law Dome", "MaunaLoa", "GCP") )
+	p <- p + scale_color_discrete( "RCP", labels=c("2.6","4.5","6.0","8.5") )
+	p <- p + scale_linetype_discrete( "Model", labels=c( "Hector", "MAGICC" ) )
 	p <- p + xlim( c( 1850, 2300 ) )
 	print( p )
 	saveplot( paste0( "magicc_comparison_", vtagname ) )
@@ -193,18 +193,18 @@ renormalize <- function( d, normalizeYears ) {
 }
 
 # -----------------------------------------------------------------------------
-cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYears=NA, facet=T ) {
+cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
     d1 <- renormalize( d1, normalizeYears )
-    d1$future <- d1$year > 2100
+    d1$future <- d1$year > 2004
     printdims( d1 )
         
     p <- ggplot( d1, aes( year, value, color=model ) )
     p <- p + geom_line( size=2 )
     p <- p + geom_ribbon( aes( ymin=value-error, ymax=value+error, fill=model ), color=NA, alpha=0.5, show_guide=F )
     p <- p + geom_ribbon( aes( ymin=error_min, ymax=error_max, fill=model ), color=NA, alpha=0.25, show_guide=F )
-    if (facet) p <- p + facet_grid( ~future, scales="free_x", space="free_x" )
+    p <- p + facet_grid( ~future, scales="free_x", space="free_x" )
     p <- p + theme( strip.text.x = element_blank() ) + theme( strip.background = element_blank() )
     p <- p + xlab( "Year" ) + ylab( prettylabel )
     p <- p + scale_color_discrete( "Model" )
@@ -256,7 +256,7 @@ theme_set( theme_bw() )
 #			"vtag"="character",
 #			"prettylabel"=NULL, "old_vtags"=NULL, "notes.y"=NULL,"variable.x"=NULL,"variable.y"=NULL )
 #d <- read_csv( INPUT_FILE, colClasses=cc  )
-d <- as.data.frame( fread( INPUT_FILE ) )  # now using data.table's fread
+d <- as.data.table( fread( INPUT_FILE ) )  # now using data.table's fread
 printdims( d )
 d <- subset( d, !spinup | is.na( spinup ) )		# remove all spinup data
 d$spinup <- NULL    # ...and a lot of crap fields
@@ -271,69 +271,26 @@ printdims( d )
 
 # Definitions for 'pretty' axis labels
 tgav_pretty <- expression( Temperature~change~group("(",paste(degree,C),")") )
-oaflux_pretty <- expression( Atmosphere-Ocean~Flux~(Pg~C~yr^{-1}))
-laflux_pretty <- expression( Atmosphere-Land~Flux~(Pg~C~yr^{-1}))
-ph_pretty <- expression( Low~Latitude~pH )
-
+oaflux_pretty <- expression( Atmosphere-ocean~flux~(Pg~C~yr^{-1}))
 
 # Figures comparing Hector and MAGICC (no CMIP)
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
 fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ) )
 fig_magicc_comparison( d, "tgav", tgav_pretty )
 fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
-#p <- fig_magicc_comparison( d, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv), normalizeYears=1850, facet=F ) )
-#print(p+coord_cartesian(xlim=c(1850, 1950), ylim=c(250,350)))
-#saveplot("amto_obs_comparison")
-
 
 # Figures comparing Hector and CMIP5 (plus MAGICC)
-
-cmip5 <- subset( d, #scenario %in% c( "rcp85", "historical") &
-                     model %in% c( "HECTOR", "MAGICC6", "CMIP5", "MaunaLoa", "Law Dome" , "HadCRUT4", "GCP", "MAGICC 5.3", "esmHistorical", "esmRCP85" ) &
-                     year >= 2005 )
-#hist <- cmip5$year < 2005
-
-#cmip5_hist <- cmip5[ hist, ]
-#cmip5_future <- cmip5[ !hist, ]
-
-p <- cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1961:1990 )
-print( p + facet_wrap( ~scenario, scales="free_y" ) )
-
-
-cmip5_comparison( cmip5, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ), normalizeYears=1850 )
-p<-cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty, facet=T )
-print(p+coord_cartesian(ylim=c(-5,25)))
-saveplot("aoflux_comparison")
-
-cmip5 <- subset( d, scenario %in% c( "rcp85", "historical", "Historical" ) &
-                     model %in% c( "HECTOR", "CMIP5","BATS", "HOTS" ) & year >= 1850 )
-p<-cmip5_comparison( cmip5, "ph_ll", ph_pretty, facet=F )
-print(p+coord_cartesian(xlim=c(1850,2100), ylim=c(7.7, 8.2)))
-saveplot("ph_ll_comparison")
-
-#smooth NBP figure
-cmip5_yr<-cmip5[order(cmip5$year), ] #sorts in order of year 
-# smoothing!
-ma <- function( x, n=5, s=1 ){ as.numeric( filter( x, rep( 1/n, n ), sides=2 ) ) }
-cmip5_sm <- ddply( cmip5_yr, .( ctag, vtag, model, type, units, scenario), mutate, value = ma(value), error = ma(error), 
-                 error_min = ma(error_min), error_max = ma(error_max))
-
-cmip5_comparison( cmip5_sm, "nbp", laflux_pretty)
-
-# zoom in on first few years
-p <- cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850, facet=F ) 
-print(p+coord_cartesian(xlim=c(1850, 2000), ylim=c(-2.5,2.5)))
-saveplot("tgav_obs_comparison")
+cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
+                     model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) &
+                     year >= 1850 )
+cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1961:1990 )
+cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 # Taylor plots comparing Hector to all CMIP5 models
-cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical") &
+cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                           year >= 1850 )
 fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
 fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
-# just plot emissions data for pco2
-cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical", "esmHistorical", "esmRCP85" ) &
-                          year >= 1850 )
-fig_taylor( cmip5indiv, "atmos_co2", "ppmv", normalizeYears=1850 )
 
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
