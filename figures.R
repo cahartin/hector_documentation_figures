@@ -109,20 +109,21 @@ taylorcolor <- function( modelname ) {
 }
 
 # -----------------------------------------------------------------------------
-#cor_table <- function( d, normalizeYears=NA, refmodel="HECTOR" ) {
-#    printlog( "Making correlation & error table..." )
+cor_table <- function( d, normalizeYears=NA, refmodel="HECTOR" ) {
+    printlog( "Making correlation & error table..." )
     
-#    d1 <- renormalize( d, normalizeYears )
+    d1 <- renormalize( d, normalizeYears )
     
-#    ddply_fields <- c( "model", "year", "value", "scenario", "vtag" )
-#    d_ref <- subset( d1, model==refmodel )[ , ddply_fields ]
-#    d_others <- subset( d1, model!=refmodel )[ , ddply_fields ]
-    
-#    f <- function(x) {
-#        dd <- merge( d_ref, x, by=c("year","vtag"))
-#    }
-#    d_summary <- ddply( d_others, .(scenario,variable,model), f )
-#}
+    ddply_fields <- c( "model", "year", "value", "scenario", "vtag", "units" )
+    d_ref <- subset( d1, model==refmodel )[ , ddply_fields ]
+    d_others <- subset( d1, model!=refmodel )[ , ddply_fields ]
+    d_merge <- merge( d_ref,d_others,by=c("scenario","vtag","year"))
+    d_summary <- ddply( d_merge, .( scenario, vtag, model.y ), summarise,
+                        cor=round( cor( value.y, value.x ), 3 ),
+                        rmse=round( summary( lm( value.y~value.x ) )$sigma, 3 ),
+                        units=unique( units.x ) )
+    return( d_summary )
+}
 
 
 # -----------------------------------------------------------------------------
@@ -312,9 +313,12 @@ fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
 fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 # Make a nice table of correlation & error between Hector and everything else
-cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
-                          year >= 1850 )
-#cor_table( cmip5indiv, c("tgav","atmos_co2","ftot"))
+cordata <- subset( d, scenario %in% c( "rcp85", "historical" ) &
+                     #model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) &
+                     #  vtag %in% c( "tgav" ) &
+                     year >= 1850 )
+print( cor_table( cordata, 1850 ) )
+
 
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
