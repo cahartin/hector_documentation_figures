@@ -27,7 +27,7 @@ printdims <- function( d, dname=deparse( substitute( d ) ) ) {
 
 # -----------------------------------------------------------------------------
 # Save a ggplot figure
-saveplot <- function( pname, p=last_plot(), ptype=".pdf" ) {
+saveplot <- function( pname, p=last_plot(), ptype=".png" ) {
 	#stopifnot( file.exists( OUTPUT_DIR ) )
 	fn <- paste0( OUTPUT_DIR, "/", pname, ptype )
 	printlog( "Saving", fn )
@@ -131,10 +131,10 @@ cor_table <- function( d, normalizeYears=NA, refmodel="HECTOR" ) {
 
 
 # -----------------------------------------------------------------------------
+# sets a reference model for the Taylor diagrams
 fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="HECTOR" ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
-    d1$future <- d1$year > 2004
     printdims( d1 )
     
     d1 <- renormalize( d1, normalizeYears )
@@ -217,18 +217,18 @@ renormalize <- function( d, normalizeYears ) {
 }
 
 # -----------------------------------------------------------------------------
-cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYears=NA ) {
+cmip5_comparison <- function( d, vtagname, prettylabel, normalizeYears=NA, facet=T ) {
     printlog( "Plotting", vtagname )
     d1 <- subset( d, vtag==vtagname )
     d1 <- renormalize( d1, normalizeYears )
-    d1$future <- d1$year > 2004
+    d1$future <- d1$year > 2100
     printdims( d1 )
         
     p <- ggplot( d1, aes( year, value, color=model ) )
     p <- p + geom_line( size=2 )
     p <- p + geom_ribbon( aes( ymin=value-error, ymax=value+error, fill=model ), color=NA, alpha=0.5, show_guide=F )
     p <- p + geom_ribbon( aes( ymin=error_min, ymax=error_max, fill=model ), color=NA, alpha=0.25, show_guide=F )
-    p <- p + facet_grid( ~future, scales="free_x", space="free_x" )
+    if (facet) p <- p + facet_grid( ~future, scales="free_x", space="free_x" )
     p <- p + theme( strip.text.x = element_blank() ) + theme( strip.background = element_blank() )
     p <- p + xlab( "Year" ) + ylab( prettylabel )
     p <- p + scale_color_discrete( "Model" )
@@ -296,6 +296,8 @@ printdims( d )
 # Definitions for 'pretty' axis labels
 tgav_pretty <- expression( Temperature~change~group("(",paste(degree,C),")") )
 oaflux_pretty <- expression( Atmosphere-ocean~flux~(Pg~C~yr^{-1}))
+laflux_pretty <- expression( Atmosphere-Land~Flux~(Pg~C~yr^{-1}))
+ph_pretty <- expression( Low~Latitude~pH )
 
 # Figures comparing Hector and MAGICC (no CMIP)
 printlog( "Figures comparing Hector and MAGICC (no CMIP)" )
@@ -304,30 +306,71 @@ fig_magicc_comparison( d, "tgav", tgav_pretty )
 fig_magicc_comparison( d, "ftot", expression( Forcing~(W~m^{-2}) ) )
 
 # Figures comparing Hector and CMIP5 (plus MAGICC)
-cmip5 <- subset( d, scenario %in% c( "rcp85", "historical" ) &
-                     model %in% c( "HECTOR", "MAGICC6", "CMIP5" ) &
+cmip5 <- subset( d, scenario %in% c( "rcp85", "historical", "esmHistorical", "esmrcp85", "Historical" ) &
+                     model %in% c( "HECTOR", "MAGICC6", "CMIP5", "HadCRUT4", "Law Dome", "MaunaLoa", "GCP", "BATS", "HOTS") &
                      year >= 1850 )
 cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850 )
-cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
+
+# zoom in on first few years
+p <- cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850, facet=F ) 
+print(p+coord_cartesian(xlim=c(1850, 2005), ylim=c(-2,2)))
+saveplot("tgav_obs_comparison")
+
+p<-cmip5_comparison( cmip5, "atmos_co2", expression( Atmospheric~CO[2]~(ppmv) ), facet=F )
+print(p+coord_cartesian(xlim=c(1850,2100), ylim=c(200,1200)))
+saveplot("atmos_co2")
+print(p+coord_cartesian(xlim=c(1850,2005), ylim=c(250,400)))
+saveplot("atmos_co2_hist")
+
+p<-cmip5_comparison( cmip5, "atm_ocean_flux", oaflux_pretty)
+print(p+coord_cartesian(ylim=c(-2,20)))
+saveplot("aoflux_comparison")
+
+# smoothing
+cmip5_yr<-cmip5[order(cmip5$year), ] #sorts in order of year 
+ma <- function( x, n=5, s=1 ){ as.numeric( filter( x, rep( 1/n, n ), sides=2 ) ) }
+cmip5_sm <- ddply( cmip5_yr, .( ctag, vtag, model, type, units, scenario), mutate, value = ma(value), error = ma(error), 
+                   error_min = ma(error_min), error_max = ma(error_max))
+cmip5_comparison( cmip5_sm, "nbp", laflux_pretty)
+
+p<-cmip5_comparison( cmip5, "ph_ll", ph_pretty, facet=F)
+print(p+coord_cartesian(xlim=c(1850,2100), ylim=c(7.7, 8.2)))
+saveplot("ph_ll_comparison")
+
+
+# renormalize here
+cmip5 <- subset( d, #scenario %in% c( "rcp85", "historical", "esmHistorical", "esmrcp85", "Historical" ) &
+                     model %in% c( "HECTOR", "MAGICC6", "CMIP5", "HadCRUT4", "Law Dome", "MaunaLoa", "GCP", "BATS", "HOTS") &
+                     year >= 1850 )
+cmip5 <- renormalize( cmip5, 1850 )
+cmip5 <- cmip5[ cmip5$year > 2015, ]
+
+labels <- data.frame( scenario=c( "rcp26","rcp45","rcp60","rcp85"),lbl=c('(a)','(b)','(c)','(d)'))
+p <- cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=NA, facet=F )
+p <- p + facet_wrap( ~scenario, scales="free_y" )+coord_cartesian(xlim=c(2005,2300) )
+#p <- p + geom_text( data=labels, aes(label=lbl),x=2010,)
+print( p )
+saveplot( "tgav_allrcps" )
 
 # Taylor plots comparing Hector to all CMIP5 models
 cmip5indiv <- subset( d, scenario %in% c( "rcp85", "historical" ) &
                           year >= 1850 )
 fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
-fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
+
+#fig_taylor( cmip5indiv, "atm_ocean_flux", oaflux_pretty, normalizeYears=1850 )
 
 # -----------------------------------------------------------------------------
 # Make a nice table of correlation & error between Hector and everything else
-cordata <- subset( d, scenario %in% c( "rcp85", "historical" ) & year >= 1850 )
+cordata <- subset( d, scenario %in% c( "esmrcp85", "esmHistorical", "rcp85", "historical", "Historical" ) & year >= 1850 )
                      
 # Models have totally inconsistent treatment of EVERYTHING
 # In this case, we really want pre-2005 years to be labelled 'historical'
-cordata[ cordata$year < 2005, "scenario" ] <- "historical"
+cordata[ cordata$year < 2005, "scenario" ] <- "historical"  #####esmrcp85 missing from here.  
 print( cor_table( cordata, 1850 ) )
 
 # Now we want to report combined values - for entire historical + rcp period
 rcp85all <- cordata
-rcp85all$scenario <- "rcp85 & historical"
+rcp85all$scenario <- "rcp85 & historical"  
 print( cor_table( rcp85all, 1850 ) )
 
 print( sessionInfo() )
