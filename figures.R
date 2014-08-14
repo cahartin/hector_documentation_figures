@@ -27,7 +27,7 @@ printdims <- function( d, dname=deparse( substitute( d ) ) ) {
 
 # -----------------------------------------------------------------------------
 # Save a ggplot figure
-saveplot <- function( pname, p=last_plot(), ptype=".png" ) {
+saveplot <- function( pname, p=last_plot(), ptype=".pdf" ) {
 	#stopifnot( file.exists( OUTPUT_DIR ) )
 	fn <- paste0( OUTPUT_DIR, "/", pname, ptype )
 	printlog( "Saving", fn )
@@ -101,11 +101,13 @@ fig_datasummary <- function( d ) {
 }
 
 # -----------------------------------------------------------------------------
-taylorcolor <- function( modelname ) {
-	if( modelname=="CMIP5" ) return( "red" )
-	else if( modelname=="MAGICC6" ) return( "blue" )
-	else if( modelname=="HECTOR" ) return( "green" )
-	else return( "darkgrey" )
+taylorcolor <- function( modelname ) { 
+    tcolors <- rep("darkgrey", length( modelname ) )
+    tcolors [ modelname %in% c( "CMIP5", "CMIP5 median") ] <- "red"
+    tcolors [ modelname == "HECTOR"] <- "green"
+    tcolors [ modelname == "MAGICC6"] <- "blue"
+    
+    return (tcolors)
 }
 
 # -----------------------------------------------------------------------------
@@ -143,7 +145,7 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="H
     
     printlog( "Taylor plot..." )		# following code from taylor.diagram help
     library( plotrix )
-    pdf( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".pdf" ) )
+    png( paste0( OUTPUT_DIR, "/", "taylor_", vtagname, ".png" ) )
     
     d_ref <- subset( d1, model==refmodel )[ , c( "model", "year", "value" ) ]
     d_others <- subset( d1, model!=refmodel )[ , c( "model", "year", "value" ) ]
@@ -167,7 +169,7 @@ fig_taylor <- function( d, vtagname, prettylabel, normalizeYears=NA, refmodel="H
     # get approximate legend position
     lpos <- 1.35 * sd( d_ref$value )
     # add a legend
-    modellist <- c("HECTOR", "MAGICC6", "CMIP5 mean", "CMIP5 model" )
+    modellist <- c("HECTOR", "MAGICC6", "CMIP5 median", "CMIP5 model" )
     legend( lpos, lpos, legend=modellist, pch=19, col=taylorcolor( modellist ) )
     # now restore par values
     par( oldpar )
