@@ -4,7 +4,7 @@
 
 # Support functions and common definitions
 
-INPUT_FILE		<- "hector_comparison.csv"
+INPUT_FILE		<- "C:/Users/hart428/Documents/GitHub/hector_documentation_figures/hector_data.csv"
 SCRIPTNAME		<- "figures.R"
 OUTPUT_DIR		<- "outputs/"
 LOG_DIR			<- "logs/"
@@ -118,17 +118,19 @@ cor_table <- function( d, normalizeYears=NA, refmodel="HECTOR" ) {
     d_ref <- subset( d1, model==refmodel )[ , ddply_fields ]
     d_others <- subset( d1, model!=refmodel )[ , ddply_fields ]
     d_merge <- merge( d_ref,d_others, by=c( "scenario", "vtag", "year" ) )
+    d_merge <- d_merge[complete.cases(d_merge),]
     d_summary <- ddply( d_merge, .( scenario, vtag, model.y ), summarise,
                         minyear=min( year ),
                         maxyear=max( year ),
                         cor=round( cor( value.y, value.x ), 3 ),
-                        cov=round( cov( value.y, value.x ), 3 ),
+                        cov=round( cov( value.y, value.x ), 3 ), 
                         r2=round( summary( lm( value.y~value.x ) )$r.squared, 3 ),
                         rmse=round( summary( lm( value.y~value.x ) )$sigma, 3 ),
+                        int0=round ( summary( lm( value.y~value.x ) )$coefficients[1,4], 3 ),
+                        slope1=round ( slope.test( value.y, value.x, test.value=1 )$p, 3 ),
                         units=unique( units.x ) )
     return( d_summary )
 }
-
 
 # -----------------------------------------------------------------------------
 # sets a reference model for the Taylor diagrams
@@ -257,7 +259,7 @@ sink( paste( LOG_DIR, paste0( SCRIPTNAME, ".txt" ), sep="/" ), split=T )
 
 printlog( "Welcome to", SCRIPTNAME )
 
-loadlibs( c( "ggplot2", "reshape2", "plyr", "lubridate", "plotrix", "data.table" ) )	# the hadleyverse
+loadlibs( c( "ggplot2", "reshape2", "plyr", "lubridate", "plotrix", "data.table", "smatr" ) )	# the hadleyverse
 theme_set( theme_bw() )
 
 #theme_update( ... )
@@ -310,6 +312,7 @@ cmip5 <- subset( d, scenario %in% c( "rcp85", "historical", "esmHistorical", "es
                      model %in% c( "HECTOR", "MAGICC6", "CMIP5", "HadCRUT4", "Law Dome", "MaunaLoa", "GCP", "BATS", "HOTS") &
                      year >= 1850 )
 cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850 )
+cmip5_comparison( cmip5, "ftot", tgav_pretty, normalizeYears=1850 )
 
 # zoom in on first few years
 p <- cmip5_comparison( cmip5, "tgav", tgav_pretty, normalizeYears=1850, facet=F ) 
@@ -362,16 +365,19 @@ fig_taylor( cmip5indiv, "tgav", tgav_pretty, normalizeYears=1961:1990 )
 # -----------------------------------------------------------------------------
 # Make a nice table of correlation & error between Hector and everything else
 cordata <- subset( d, scenario %in% c( "esmrcp85", "esmHistorical", "rcp85", "historical", "Historical" ) & year >= 1850 )
-                     
-# Models have totally inconsistent treatment of EVERYTHING
-# In this case, we really want pre-2005 years to be labelled 'historical'
-cordata[ cordata$year < 2005, "scenario" ] <- "historical"  #####esmrcp85 missing from here.  
-print( cor_table( cordata, 1850 ) )
 
 # Now we want to report combined values - for entire historical + rcp period
-rcp85all <- cordata
-rcp85all$scenario <- "rcp85 & historical"  
-print( cor_table( rcp85all, 1850 ) )
+cordata$scenario <- "rcp85 & historical"  
+table1<-( cor_table( cordata, 1850 ) )
+write.csv(table1, "table_combined.csv", row.names = F)
+
+# Models have totally inconsistent treatment of EVERYTHING
+# In this case, we really want pre-2005 years to be labelled 'historical'
+cordata$scenario<-"rcp85"
+cordata[ cordata$year < 2005, "scenario" ] <- "historical" 
+table2<-( cor_table( cordata, 1850 ) )
+
+write.csv(table2, "historical_rcp_table.csv", row.names = F)
 
 print( sessionInfo() )
 printlog( "All done with", SCRIPTNAME )
